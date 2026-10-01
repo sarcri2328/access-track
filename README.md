@@ -63,13 +63,15 @@ PocketBase may print a link in the terminal for creating an "admin" account. You
 - Your test data is stored in a `pb_data` folder that PocketBase creates automatically. Delete that folder to reset everything, or delete the whole project folder when you're done.
   
 ## Where the code is
-- `pb_public/index.html`: the whole front end (markup, styles, and JavaScript) in one file
+- `pb_public/index.html`: first half of the front end (markup and JavaScript)
+- `pb_public/styles.css`: second half of the front end (the stylesheet)
 - `pb_migrations/`: the database collection, fields, and API rules, created automatically the first time PocketBase starts
 The API rules on the `applications` collection are what keep each user's data private:
  
 - List/View/Delete: `user = @request.auth.id`
 - Create: `@request.auth.id != "" && @request.body.user = @request.auth.id`
 - Update: `user = @request.auth.id && @request.body.user:isset = false`
+
 ## Troubleshooting
 - **Page won't load:** make sure the terminal window is still open and showing PocketBase running, and that you opened `http://127.0.0.1:8090/`. Don't open `index.html` by double-clicking it, because it has to be served by PocketBase.
 - **"Port already in use":** start it on another port, for example `pocketbase.exe serve --http=127.0.0.1:8091`, then open `http://127.0.0.1:8091/`.
@@ -81,7 +83,7 @@ The API rules on the `applications` collection are what keep each user's data pr
 - Status changes (added, updated, deleted, filter changes) are announced through a polite live region
 - Native `<dialog>` for add/edit/delete: focus is trapped, Escape closes, focus returns to the button you came from
 - Status is shown as text, never by color alone; filter buttons use `aria-pressed`
-- Icon-free buttons with unique accessible names ("Edit Designer at Acme")
+- Icon-free buttons with unique accessible names
 - Links that open a new tab say so to screen readers
 - 44px minimum touch targets, strong visible focus ring, Atkinson Hyperlegible font
 - Light/dark theme that follows the OS setting and can be toggled, `prefers-reduced-motion` and forced-colors support, and usable when zoomed to 200%
