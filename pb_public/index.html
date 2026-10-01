@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>AccessibleJob Tracker</title>
+<title>Accessible Job Tracker</title>
 <link rel="stylesheet" href="styles.css">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible:wght@400;700&display=swap" rel="stylesheet">
@@ -17,7 +17,7 @@
 <header>
   <h1>Accessible Job Tracker</h1>
   <div class="bar">
-    <button id="theme" type="button" aria-pressed="false">Dark mode</button>
+    <button id="theme" type="button">Switch to dark mode</button>
     <span id="who" class="hidden"></span>
     <button id="logout" type="button" class="hidden">Sign out</button>
   </div>
@@ -106,9 +106,9 @@ const el = (tag, props = {}, ...kids) => { const n = Object.assign(document.crea
 const color = s => `var(--s-${s.toLowerCase()})`;
 
 // ---------- theme ----------
-function setTheme(t){ document.documentElement.dataset.theme = t; $('theme').setAttribute('aria-pressed', t === 'dark'); try{localStorage.theme = t}catch{} }
+function setTheme(t){ document.documentElement.dataset.theme = t; $('theme').textContent = t === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'; try{localStorage.theme = t}catch{} }
 setTheme((()=>{ try{ if(localStorage.theme) return localStorage.theme }catch{} return matchMedia('(prefers-color-scheme:dark)').matches ? 'dark':'light' })());
-$('theme').onclick = () => setTheme(document.documentElement.dataset.theme === 'dark' ? 'light' : 'dark');
+$('theme').onclick = () => { const t = document.documentElement.dataset.theme === 'dark' ? 'light' : 'dark'; setTheme(t); announce(`${t === 'dark' ? 'Dark' : 'Light'} mode on.`); };
 
 // ---------- auth ----------
 function showAuthMode(){
