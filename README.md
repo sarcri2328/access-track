@@ -4,7 +4,11 @@ A job application tracker with user accounts, built with [PocketBase](https://gi
  
 ## What it does
 - Sign up and sign in; each user only sees their own applications (enforced by PocketBase API rules on the server, not just in the UI)
+
+![Dark mode login screen](img/dark-mode_login.png)
 - Create, view, edit, and delete applications
+
+![Dark mode create new application dialog](img/dark-mode_create.png)
 - Filter by status, search by company or role, and expand or collapse long job descriptions
 - Built with accessibility in mind: skip link, labelled form fields, screen reader announcements, focus-managed dialogs, status shown in text and not by color alone, large touch targets, dark mode, and support for reduced motion
 
@@ -57,10 +61,7 @@ PocketBase may print a link in the terminal for creating an "admin" account. You
 ### 5. Stop and clean up
 - Press **Ctrl + C** in the terminal window to stop the app.
 - Your test data is stored in a `pb_data` folder that PocketBase creates automatically. Delete that folder to reset everything, or delete the whole project folder when you're done.
-## Things worth checking
-- **Keyboard only:** use Tab, Shift+Tab, Enter, Space, and Esc. Everything can be done without a mouse, and dialogs return focus to where you left off.
-- **Privacy between users:** create a second account (sign out first) and confirm it can't see the first account's applications.
-- **Display settings:** try the dark mode button, or your operating system's dark mode and reduced-motion settings.
+  
 ## Where the code is
 - `pb_public/index.html`: the whole front end (markup, styles, and JavaScript) in one file
 - `pb_migrations/`: the database collection, fields, and API rules, created automatically the first time PocketBase starts
