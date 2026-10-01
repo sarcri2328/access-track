@@ -1,4 +1,4 @@
-# Job Tracker
+# AccessTrack - Job Tracker Application Database
  
 A job application tracker with user accounts, built with [PocketBase](https://github.com/pocketbase/pocketbase) and plain HTML, CSS, and JavaScript. Log each application with the company, role, where you found it, a link to the posting, the job description, and its current status.
  
@@ -9,8 +9,16 @@ A job application tracker with user accounts, built with [PocketBase](https://gi
 - Create, view, edit, and delete applications
 
 ![Dark mode create new application dialog](img/dark-mode_create.png)
+![Dark mode view applications](img/dark-mode_view.png)
+![Dark mode edit application dialog](img/dark-mode_edit.png)
+![Dark mode delete application dialog](img/dark-mode_delete.png)
+
 - Filter by status, search by company or role, and expand or collapse long job descriptions
+
+![Dark mode status examples](img/dark-mode_statuses.png)
 - Built with accessibility in mind: skip link, labelled form fields, screen reader announcements, focus-managed dialogs, status shown in text and not by color alone, large touch targets, dark mode, and support for reduced motion
+
+![Light mode toggled on](img/light-mode_read.png)
 
 ## Try it yourself (about 5 minutes)
 The app runs entirely on your own computer. Nothing is uploaded anywhere, and you don't need to install anything except one small program (PocketBase). You do need an internet connection the first time, because the page loads a font and the PocketBase library from the web.
