@@ -1,0 +1,263 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>AccessibleJob Tracker</title>
+<link rel="stylesheet" href="styles.css">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible:wght@400;700&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/pocketbase@0.26.2/dist/pocketbase.umd.js"></script>
+</head>
+
+<body>
+<a class="skip" href="#main">Skip to main content</a>
+<div id="live" class="sr" role="status" aria-live="polite"></div>
+
+<header>
+  <h1>Accessible Job Tracker</h1>
+  <div class="bar">
+    <button id="theme" type="button" aria-pressed="false">Dark mode</button>
+    <span id="who" class="hidden"></span>
+    <button id="logout" type="button" class="hidden">Sign out</button>
+  </div>
+</header>
+
+<main id="main" tabindex="-1">
+  <!-- Sign in / create account -->
+  <section id="auth" class="card" style="max-width:26rem;margin:2rem auto" aria-labelledby="auth-title">
+    <h2 id="auth-title">Sign in</h2>
+    <form id="auth-form" novalidate>
+      <div class="field">
+        <label for="email">Email</label>
+        <input id="email" type="email" autocomplete="email" required>
+      </div>
+      <div class="field">
+        <label for="password">Password</label>
+        <p id="pw-hint" class="hint">At least 8 characters.</p>
+        <input id="password" type="password" autocomplete="current-password" minlength="8" required aria-describedby="pw-hint">
+      </div>
+      <p id="auth-err" class="err" role="alert"></p>
+      <div class="bar">
+        <button class="primary" type="submit" id="auth-submit">Sign in</button>
+        <button type="button" id="auth-toggle">Create an account instead</button>
+      </div>
+    </form>
+  </section>
+
+  <!-- Tracker -->
+  <section id="app" class="hidden" aria-labelledby="apps-title">
+    <div class="row">
+      <h2 id="apps-title" style="margin:0">Your applications</h2>
+      <button id="add" type="button" class="primary">Add application</button>
+    </div>
+    <div class="bar" role="group" aria-label="Filter by status" id="filters" style="margin-bottom:1rem"></div>
+    <div class="field" style="max-width:22rem">
+      <label for="search">Search company or role</label>
+      <input id="search" type="search" autocomplete="off">
+    </div>
+    <p id="load-err" class="err" role="alert"></p>
+    <ul id="list" class="list" aria-label="Applications"></ul>
+    <div id="empty" class="card empty hidden"></div>
+  </section>
+</main>
+
+<!-- Add / edit dialog -->
+<dialog id="form-dlg" aria-labelledby="form-title">
+  <h2 id="form-title">Add application</h2>
+  <form id="form" novalidate>
+    <div class="two">
+      <div class="field"><label for="f-company">Company</label><input id="f-company" required autocomplete="organization"></div>
+      <div class="field"><label for="f-role">Job title</label><input id="f-role" required></div>
+      <div class="field"><label for="f-platform">Where you found it</label><select id="f-platform"></select></div>
+      <div class="field"><label for="f-status">Status</label><select id="f-status"></select></div>
+      <div class="field"><label for="f-url">Link to the posting</label><input id="f-url" type="url" inputmode="url" placeholder="https://"></div>
+      <div class="field"><label for="f-date">Date applied</label><input id="f-date" type="date"></div>
+    </div>
+    <div class="field"><label for="f-desc">Job description and notes</label><textarea id="f-desc"></textarea></div>
+    <p id="form-err" class="err" role="alert"></p>
+    <div class="bar">
+      <button class="primary" type="submit">Save application</button>
+      <button type="button" id="form-cancel">Cancel</button>
+    </div>
+  </form>
+</dialog>
+
+<!-- Delete confirmation -->
+<dialog id="del-dlg" aria-labelledby="del-title">
+  <h2 id="del-title">Delete this application?</h2>
+  <p id="del-text"></p>
+  <div class="bar">
+    <button class="danger" type="button" id="del-yes">Delete application</button>
+    <button type="button" id="del-no">Keep it</button>
+  </div>
+</dialog>
+
+<script>
+const pb = new PocketBase('/');           // served from pb_public, so same origin
+const PLATFORMS = ['LinkedIn','Indeed','Glassdoor','Handshake','Company Site','Referral','Other'];
+const STATUSES = ['Saved','Applied','Interviewing','Offer','Rejected','Withdrawn'];
+const $ = id => document.getElementById(id);
+let items = [], filter = 'All', signup = false, editing = null, deleting = null, lastFocus = null;
+const expanded = new Set();   // ids of applications whose description is open
+
+const announce = msg => { $('live').textContent = ''; setTimeout(() => $('live').textContent = msg, 50); };
+const el = (tag, props = {}, ...kids) => { const n = Object.assign(document.createElement(tag), props); n.append(...kids); return n; };
+const color = s => `var(--s-${s.toLowerCase()})`;
+
+// ---------- theme ----------
+function setTheme(t){ document.documentElement.dataset.theme = t; $('theme').setAttribute('aria-pressed', t === 'dark'); try{localStorage.theme = t}catch{} }
+setTheme((()=>{ try{ if(localStorage.theme) return localStorage.theme }catch{} return matchMedia('(prefers-color-scheme:dark)').matches ? 'dark':'light' })());
+$('theme').onclick = () => setTheme(document.documentElement.dataset.theme === 'dark' ? 'light' : 'dark');
+
+// ---------- auth ----------
+function showAuthMode(){
+  $('auth-title').textContent = signup ? 'Create your account' : 'Sign in';
+  $('auth-submit').textContent = signup ? 'Create account' : 'Sign in';
+  $('auth-toggle').textContent = signup ? 'I already have an account' : 'Create an account instead';
+  $('password').autocomplete = signup ? 'new-password' : 'current-password';
+}
+$('auth-toggle').onclick = () => { signup = !signup; showAuthMode(); $('auth-err').textContent = ''; $('email').focus(); };
+$('auth-form').onsubmit = async e => {
+  e.preventDefault();
+  const email = $('email'), pw = $('password');
+  [email, pw].forEach(i => i.removeAttribute('aria-invalid'));
+  if(!email.value.trim()){ return authErr('Enter your email address.', email); }
+  if(pw.value.length < 8){ return authErr('Password must be at least 8 characters.', pw); }
+  try{
+    if(signup) await pb.collection('users').create({email:email.value, password:pw.value, passwordConfirm:pw.value});
+    await pb.collection('users').authWithPassword(email.value, pw.value);
+    pw.value = '';
+    start();
+  }catch(err){
+    authErr(signup ? 'Could not create that account. The email may already be in use.' : 'Email or password is incorrect.', email);
+  }
+};
+function authErr(msg, field){ $('auth-err').textContent = msg; field.setAttribute('aria-invalid','true'); field.focus(); }
+$('logout').onclick = () => { pb.authStore.clear(); items = []; start(); $('email').focus(); announce('Signed out.'); };
+
+function start(){
+  const on = pb.authStore.isValid;
+  $('auth').classList.toggle('hidden', on);
+  $('app').classList.toggle('hidden', !on);
+  $('logout').classList.toggle('hidden', !on);
+  $('who').classList.toggle('hidden', !on);
+  if(on){ $('who').textContent = pb.authStore.record.email; load(); }
+}
+
+// ---------- read ----------
+async function load(){
+  $('load-err').textContent = '';
+  try{
+    items = await pb.collection('applications').getFullList();
+    items.sort((a, b) => (b.updated || b.created || '').localeCompare(a.updated || a.created || ''));
+  }catch(e){
+    console.error(e);
+    $('load-err').textContent = `Could not load your applications (error ${e.status || 'network'}). Check the collection fields and API rules.`;
+  }
+  render();
+}
+
+function render(){
+  const q = $('search').value.trim().toLowerCase();
+  const shown = items.filter(a => (filter === 'All' || a.status === filter) &&
+    (!q || (a.company + ' ' + a.role).toLowerCase().includes(q)));
+
+  $('filters').replaceChildren(...['All', ...STATUSES].map(s => {
+    const n = s === 'All' ? items.length : items.filter(a => a.status === s).length;
+    const b = el('button', {type:'button', textContent:`${s} (${n})`});
+    b.setAttribute('aria-pressed', s === filter);
+    b.onclick = () => { filter = s; render(); announce(`Showing ${s === 'All' ? 'all' : s} applications.`); };
+    return b;
+  }));
+
+  $('list').replaceChildren(...shown.map(a => {
+    const link = a.url ? el('a', {href:a.url, target:'_blank', rel:'noopener noreferrer', textContent:'Open posting'},
+      el('span', {className:'sr', textContent:` for ${a.role} at ${a.company} (opens in a new tab)`})) : null;
+    const edit = el('button', {type:'button', textContent:'Edit'}, el('span', {className:'sr', textContent:` ${a.role} at ${a.company}`}));
+    const del = el('button', {type:'button', className:'danger', textContent:'Delete'}, el('span', {className:'sr', textContent:` ${a.role} at ${a.company}`}));
+    edit.onclick = () => openForm(a); del.onclick = () => openDelete(a);
+
+    // Collapsible description: collapsed by default, state survives filtering/searching
+    const open = expanded.has(a.id);
+    const notes = a.description ? el('p', {className:'notes', id:`notes-${a.id}`, hidden:!open, textContent:a.description}) : null;
+    let tog = null;
+    if(notes){
+      const arrow = el('span', {textContent: open ? '▾ ' : '▸ '}); arrow.setAttribute('aria-hidden','true');
+      tog = el('button', {type:'button'}, arrow, 'Description', el('span', {className:'sr', textContent:` for ${a.role} at ${a.company}`}));
+      tog.setAttribute('aria-expanded', open); tog.setAttribute('aria-controls', notes.id);
+      tog.onclick = () => {
+        const show = notes.hidden;
+        notes.hidden = !show;
+        show ? expanded.add(a.id) : expanded.delete(a.id);
+        tog.setAttribute('aria-expanded', show);
+        arrow.textContent = show ? '▾ ' : '▸ ';
+      };
+    }
+    const li = el('li', {className:'card app'},
+      el('h3', {textContent:`${a.role}, ${a.company}`}),
+      el('p', {className:'meta'}, el('span', {className:'badge', textContent:a.status}), ` ${a.platform || 'Unknown source'}` + (a.applied_on ? ` · applied ${a.applied_on.slice(0,10)}` : '')),
+      ...(notes ? [notes] : []),
+      el('div', {className:'bar'}, ...(tog ? [tog] : []), edit, del, ...(link ? [link] : [])));
+    li.style.setProperty('--c', color(a.status));
+    return li;
+  }));
+
+  const empty = $('empty');
+  empty.classList.toggle('hidden', shown.length > 0);
+  empty.textContent = items.length ? 'No applications match this filter or search.' : 'No applications yet. Add the first job you have applied to or want to track.';
+}
+$('search').oninput = render;
+
+// ---------- create / update ----------
+$('f-platform').replaceChildren(...PLATFORMS.map(p => el('option', {value:p, textContent:p})));
+$('f-status').replaceChildren(...STATUSES.map(s => el('option', {value:s, textContent:s})));
+
+function openForm(a){
+  lastFocus = document.activeElement; editing = a || null;
+  $('form-title').textContent = a ? 'Edit application' : 'Add application';
+  $('f-company').value = a?.company || ''; $('f-role').value = a?.role || '';
+  $('f-platform').value = a?.platform || 'LinkedIn'; $('f-status').value = a?.status || 'Applied';
+  $('f-url').value = a?.url || ''; $('f-date').value = a?.applied_on?.slice(0,10) || '';
+  $('f-desc').value = a?.description || ''; $('form-err').textContent = '';
+  document.querySelectorAll('#form [aria-invalid]').forEach(i => i.removeAttribute('aria-invalid'));
+  $('form-dlg').showModal(); $('f-company').focus();
+}
+$('add').onclick = () => openForm();
+$('form-cancel').onclick = () => $('form-dlg').close();
+
+$('form').onsubmit = async e => {
+  e.preventDefault();
+  const need = ['f-company','f-role'].find(id => !$(id).value.trim());
+  if(need){ $(need).setAttribute('aria-invalid','true'); $('form-err').textContent = `Enter the ${need === 'f-company' ? 'company name' : 'job title'}.`; return $(need).focus(); }
+  const data = {company:$('f-company').value.trim(), role:$('f-role').value.trim(), platform:$('f-platform').value,
+    status:$('f-status').value, url:$('f-url').value.trim(), applied_on:$('f-date').value, description:$('f-desc').value};
+  try{
+    if(editing){ await pb.collection('applications').update(editing.id, data); }
+    else { data.user = pb.authStore.record.id; await pb.collection('applications').create(data); }
+    $('form-dlg').close(); await load();
+    announce(editing ? 'Application updated.' : 'Application added.');
+  }catch(err){
+    $('form-err').textContent = 'Could not save. Check that the link starts with https:// and try again.';
+  }
+};
+
+// ---------- delete ----------
+function openDelete(a){
+  lastFocus = document.activeElement; deleting = a;
+  $('del-text').textContent = `${a.role} at ${a.company} will be permanently removed.`;
+  $('del-dlg').showModal(); $('del-no').focus();
+}
+$('del-no').onclick = () => $('del-dlg').close();
+$('del-yes').onclick = async () => {
+  try{ await pb.collection('applications').delete(deleting.id); $('del-dlg').close(); await load(); announce('Application deleted.'); lastFocus = $('add'); }
+  catch(e){ $('del-text').textContent = 'Could not delete. Try again.'; }
+};
+
+// return focus to where the user was when any dialog closes
+['form-dlg','del-dlg'].forEach(id => $(id).addEventListener('close', () => { if(lastFocus?.isConnected) lastFocus.focus(); else $('add').focus(); }));
+
+showAuthMode(); start();
+</script>
+</body>
+</html>
